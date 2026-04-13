@@ -1,0 +1,456 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  ChevronRight, 
+  ChevronDown, 
+  Box, 
+  Settings, 
+  Cpu, 
+  Plus, 
+  MoreVertical, 
+  Search,
+  GitGraph,
+  List,
+  Maximize2,
+  X,
+  Layers,
+  Database,
+  Save
+} from 'lucide-react';
+
+// Mock data iniziale
+const initialData = [
+  { id: '1', code: 'SAT', name: 'BEPI-SAT', level: 'satellite', parentId: null },
+  { id: '1.1', code: 'STR', name: 'Structure', level: 'subsystem', parentId: '1' },
+  { id: '1.1.1', code: 'STR-PRI', name: 'Primary Structure', level: 'equipment', parentId: '1.1', mass: 35.0, power: 0.0, qty: 1, maturity: 'measured', trl: 8 },
+  { id: '1.1.2', code: 'STR-SEC', name: 'Secondary Structure', level: 'equipment', parentId: '1.1', mass: 8.0, power: 0.0, qty: 1, maturity: 'measured', trl: 7 },
+  { id: '1.1.3', code: 'STR-IFR', name: 'Interface Ring', level: 'equipment', parentId: '1.1', mass: 4.5, power: 0.0, qty: 1, maturity: 'qualified', trl: 9 },
+  { id: '1.2', code: 'EPS', name: 'Electrical Power', level: 'subsystem', parentId: '1' },
+  { id: '1.2.1', code: 'EPS-SA', name: 'Solar Array (6U)', level: 'equipment', parentId: '1.2', mass: 12.0, power: 0.0, qty: 2, maturity: 'measured', trl: 7 },
+  { id: '1.2.2', code: 'EPS-BAT', name: 'Li-Ion Battery Pack', level: 'equipment', parentId: '1.2', mass: 18.0, power: 0.0, qty: 1, maturity: 'measured', trl: 8 },
+  { id: '1.2.3', code: 'EPS-PCDU', name: 'PCDU', level: 'equipment', parentId: '1.2', mass: 6.0, power: 15.0, qty: 1, maturity: 'estimate', trl: 5 },
+  { id: '1.3', code: 'AOCS', name: 'Attitude & Orbit Control', level: 'subsystem', parentId: '1' },
+  { id: '1.3.1', code: 'AOCS-STR', name: 'Star Tracker', level: 'equipment', parentId: '1.3', mass: 2.8, power: 12.0, qty: 2, maturity: 'qualified', trl: 9 },
+];
+
+const buildTree = (items, parentId = null) => {
+  return items
+    .filter(item => item.parentId === parentId)
+    .map(item => ({ ...item, children: buildTree(items, item.id) }));
+};
+
+const TreeNode = ({ node, level = 0, onAddChild }) => {
+  const [isOpen, setIsOpen] = useState(level < 2);
+  const hasChildren = node.children && node.children.length > 0;
+
+  const getLevelStyles = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'mission': return 'border-orange-500/50 bg-orange-500/10 text-orange-400';
+      case 'satellite': return 'border-blue-500/50 bg-blue-500/10 text-blue-400';
+      case 'subsystem': return 'border-purple-500/50 bg-purple-500/10 text-purple-400';
+      case 'equipment': return 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400';
+      default: return 'border-slate-600 bg-slate-800 text-slate-300';
+    }
+  };
+
+  const getIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'mission': return <Layers size={18} />;
+      case 'satellite': return <Box size={18} />;
+      case 'subsystem': return <Settings size={18} />;
+      case 'equipment': return <Cpu size={18} />;
+      default: return <ChevronRight size={18} />;
+    }
+  };
+
+  return (
+    <div className="flex flex-col">
+      <div 
+        className={`group relative flex items-center p-3 my-1 rounded-xl border transition-all duration-200 cursor-pointer 
+          ${getLevelStyles(node.level)} hover:scale-[1.01] hover:shadow-lg`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {level > 0 && (
+          <div className="absolute -left-6 top-1/2 w-6 h-[2px] bg-slate-700/50" />
+        )}
+
+        <div className="mr-3 text-slate-500">
+          {hasChildren ? (
+            isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />
+          ) : (
+            <div className="w-4" />
+          )}
+        </div>
+
+        <div className="mr-3 p-2 rounded-lg bg-slate-900/60 shadow-inner">
+          {getIcon(node.level)}
+        </div>
+
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono opacity-50">{node.id}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-60">{node.code}</span>
+          </div>
+          <span className="font-semibold text-slate-100">{node.name}</span>
+        </div>
+
+        <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+          <button 
+            className="p-1.5 hover:bg-white/10 rounded-md text-slate-300" 
+            onClick={(e) => { e.stopPropagation(); onAddChild(node); }}
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+      </div>
+
+      {isOpen && hasChildren && (
+        <div className="ml-10 relative border-l-2 border-slate-700/40 pl-6 py-1">
+          {node.children.map((child) => (
+            <TreeNode key={child.id} node={child} level={level + 1} onAddChild={onAddChild} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function App() {
+  const [items, setItems] = useState(initialData);
+  const [viewMode, setViewMode] = useState('tree');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedParentFromUI, setSelectedParentFromUI] = useState(null);
+
+  // Modal Form State
+  const [newNode, setNewNode] = useState({ 
+    code: '', 
+    name: '', 
+    level: 'subsystem', 
+    parentId: '' 
+  });
+
+  const handleUpdateItem = (id, field, value) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const handleAddNode = () => {
+    const parentId = newNode.parentId || null;
+    const parent = items.find(i => i.id === parentId);
+    
+    // Generazione ID gerarchico semplice
+    const siblings = items.filter(i => i.parentId === parentId);
+    const newId = parentId ? `${parentId}.${siblings.length + 1}` : `${items.filter(i => !i.parentId).length + 1}`;
+    
+    const nodeToAdd = {
+      ...newNode,
+      id: newId,
+      parentId: parentId,
+      mass: 0, power: 0, qty: 1, maturity: 'estimate', trl: 1
+    };
+    
+    setItems([...items, nodeToAdd]);
+    setShowAddModal(false);
+    setNewNode({ code: '', name: '', level: 'subsystem', parentId: '' });
+  };
+
+  const treeData = useMemo(() => buildTree(items), [items]);
+
+  return (
+    <div className="min-h-screen bg-[#0f111a] text-slate-300 font-sans flex overflow-hidden">
+      
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#161b22] border-r border-slate-800 flex flex-col shrink-0">
+        <div className="p-10 flex flex-col items-center">
+          <div className="w-14 h-14 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-4 border border-blue-500/30">
+            <Layers className="text-blue-400" size={28} />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">B.E.P.I.</h1>
+          <p className="text-[10px] text-slate-500 mt-1 uppercase font-medium tracking-widest text-center">Engineering Systems</p>
+        </div>
+
+        <nav className="flex-1 px-4 space-y-1">
+          {['Overview', 'Product Tree', 'Budgets', 'Requirements', 'Schedule', 'Warehouse'].map((item) => (
+            <div 
+              key={item}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all ${
+                item === 'Product Tree' 
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-900/10' 
+                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+              }`}
+            >
+              <div className="w-5 h-5 opacity-70">
+                <Layers size={18} />
+              </div>
+              <span className="text-sm font-semibold">{item}</span>
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        
+        {/* Header */}
+        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-[#0f111a]/80 backdrop-blur-md z-20">
+          <div className="flex items-center gap-6">
+            <h2 className="text-lg font-bold text-white">Project Hierarchy</h2>
+            
+            <div className="flex bg-[#1c2128] rounded-xl p-1 border border-slate-700 shadow-inner">
+              <button 
+                onClick={() => setViewMode('tree')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'tree' ? 'bg-slate-700 text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
+                title="Visualizzazione Albero"
+              >
+                <GitGraph size={20} />
+              </button>
+              <button 
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-slate-700 text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
+                title="Tabella WBS"
+              >
+                <List size={20} />
+              </button>
+              <button 
+                onClick={() => setViewMode('budget')}
+                className={`p-2 rounded-lg transition-all ${viewMode === 'budget' ? 'bg-slate-700 text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-400'}`}
+                title="Budget Equipment"
+              >
+                <Database size={20} />
+              </button>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => { 
+              setNewNode(prev => ({ ...prev, parentId: '' }));
+              setShowAddModal(true); 
+            }}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-900/30 flex items-center gap-2"
+          >
+            <Plus size={16} /> Add Component
+          </button>
+        </header>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          
+          <div className="max-w-5xl mx-auto">
+            
+            {/* 1. TREE VIEW */}
+            {viewMode === 'tree' && (
+              <div className="bg-[#161b22]/40 border border-slate-800/60 rounded-[2rem] p-10 shadow-2xl">
+                <div className="mb-8">
+                   <h3 className="text-sm font-bold uppercase tracking-widest text-blue-500 mb-1">Mission Structure</h3>
+                   <p className="text-slate-500 text-xs font-medium">Functional breakdown of satellite equipment</p>
+                </div>
+                {treeData.map(node => (
+                  <TreeNode 
+                    key={node.id} 
+                    node={node} 
+                    onAddChild={(p) => { 
+                      setNewNode(prev => ({ ...prev, parentId: p.id }));
+                      setShowAddModal(true); 
+                    }} 
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* 2. TABLE VIEW */}
+            {viewMode === 'table' && (
+              <div className="bg-[#161b22] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-800/50 text-slate-400 uppercase text-[10px] font-bold tracking-widest border-b border-slate-800">
+                    <tr>
+                      <th className="px-6 py-5">WBS ID</th>
+                      <th className="px-6 py-5">Code</th>
+                      <th className="px-6 py-5">Name</th>
+                      <th className="px-6 py-5">Level</th>
+                      <th className="px-6 py-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {items.map((item) => (
+                      <tr key={item.id} className="hover:bg-blue-500/[0.03] transition-colors group">
+                        <td className="px-6 py-4 font-mono text-blue-500/70 text-xs">{item.id}</td>
+                        <td className="px-6 py-4 font-bold text-slate-300 tracking-tight">{item.code}</td>
+                        <td className="px-6 py-4 text-white font-medium">{item.name}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase border ${
+                            item.level === 'satellite' ? 'border-blue-500/30 text-blue-400 bg-blue-500/5' : 
+                            item.level === 'subsystem' ? 'border-purple-500/30 text-purple-400 bg-purple-500/5' : 
+                            'border-emerald-500/30 text-emerald-400 bg-emerald-500/5'
+                          }`}>
+                            {item.level}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button className="text-slate-600 hover:text-white"><MoreVertical size={14} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* 3. BUDGET VIEW */}
+            {viewMode === 'budget' && (
+              <div className="bg-[#161b22] border border-slate-800 rounded-2xl overflow-x-auto shadow-xl">
+                <table className="w-full text-left text-[13px] whitespace-nowrap">
+                  <thead className="bg-slate-800/50 text-slate-400 uppercase text-[10px] font-bold tracking-widest border-b border-slate-800">
+                    <tr>
+                      <th className="px-6 py-5">Equipment Code</th>
+                      <th className="px-6 py-5">Name</th>
+                      <th className="px-6 py-5">Mass (kg)</th>
+                      <th className="px-6 py-5">Power (W)</th>
+                      <th className="px-6 py-5">Qty</th>
+                      <th className="px-6 py-5">Maturity</th>
+                      <th className="px-6 py-5">TRL</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {items.filter(i => i.level === 'equipment').map((item) => (
+                      <tr key={item.id} className="hover:bg-emerald-500/[0.03] transition-colors group">
+                        <td className="px-6 py-4 font-mono text-emerald-500 font-bold">{item.code}</td>
+                        <td className="px-6 py-4 font-semibold text-white">{item.name}</td>
+                        <td className="px-6 py-4">
+                          <input 
+                            type="number" 
+                            value={item.mass} 
+                            onChange={(e) => handleUpdateItem(item.id, 'mass', parseFloat(e.target.value))}
+                            className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 w-20 outline-none focus:border-emerald-500 text-slate-300" 
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <input 
+                            type="number" 
+                            value={item.power} 
+                            onChange={(e) => handleUpdateItem(item.id, 'power', parseFloat(e.target.value))}
+                            className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 w-20 outline-none focus:border-emerald-500 text-slate-300" 
+                          />
+                        </td>
+                        <td className="px-6 py-4 font-bold text-slate-400">{item.qty}</td>
+                        <td className="px-6 py-4">
+                          <select 
+                            value={item.maturity}
+                            onChange={(e) => handleUpdateItem(item.id, 'maturity', e.target.value)}
+                            className="bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 outline-none text-[11px] font-bold text-slate-400 uppercase"
+                          >
+                            <option value="estimate">Estimate</option>
+                            <option value="measured">Measured</option>
+                            <option value="qualified">Qualified</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-blue-400">{item.trl}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Popup Creazione Nodo */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1c2128] border border-slate-700 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden scale-in">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center bg-[#24292f]/50">
+              <div>
+                <h3 className="text-xl font-bold text-white">Add Component</h3>
+                <p className="text-xs text-slate-500 mt-1">Definisci le specifiche del nuovo elemento</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-xl">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Parent Node</label>
+                  <select 
+                    value={newNode.parentId}
+                    onChange={(e) => setNewNode({...newNode, parentId: e.target.value})}
+                    className="w-full bg-[#0d1117] border border-slate-800 rounded-xl p-3 text-sm text-slate-300 focus:border-blue-500 outline-none appearance-none"
+                  >
+                    <option value="">Root — (No Parent)</option>
+                    {items.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} — {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Level</label>
+                  <select 
+                    value={newNode.level}
+                    onChange={(e) => setNewNode({...newNode, level: e.target.value})}
+                    className="w-full bg-[#0d1117] border border-slate-800 rounded-xl p-3 text-sm text-slate-300 focus:border-blue-500 outline-none appearance-none"
+                  >
+                    <option value="mission">Mission</option>
+                    <option value="satellite">Satellite</option>
+                    <option value="subsystem">Subsystem</option>
+                    <option value="equipment">Equipment</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">WBS Code</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. STR-001" 
+                    value={newNode.code}
+                    onChange={(e) => setNewNode({...newNode, code: e.target.value})}
+                    className="w-full bg-[#0d1117] border border-slate-800 rounded-xl p-3 text-sm text-white focus:border-blue-500 outline-none shadow-inner" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Component Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Nome descrittivo..." 
+                    value={newNode.name}
+                    onChange={(e) => setNewNode({...newNode, name: e.target.value})}
+                    className="w-full bg-[#0d1117] border border-slate-800 rounded-xl p-3 text-sm text-white focus:border-blue-500 outline-none shadow-inner" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 bg-[#24292f]/50 border-t border-slate-800 flex gap-4">
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 py-3 text-slate-400 font-bold text-xs uppercase hover:text-white transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddNode}
+                className="flex-[2] py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase rounded-xl transition-all shadow-lg shadow-blue-900/40"
+              >
+                Create Node
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #484f58; }
+        .scale-in { animation: scaleIn 0.2s ease-out forwards; }
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+      `}} />
+    </div>
+  );
+}
